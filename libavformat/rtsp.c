@@ -89,6 +89,7 @@ const AVOption ff_rtsp_options[] = {
     RTSP_MEDIATYPE_OPTS("allowed_media_types", "set media types to accept from the server"),
     { "min_port", "set minimum local UDP port", OFFSET(rtp_port_min), AV_OPT_TYPE_INT, {.i64 = RTSP_RTP_PORT_MIN}, 0, 65535, DEC|ENC },
     { "max_port", "set maximum local UDP port", OFFSET(rtp_port_max), AV_OPT_TYPE_INT, {.i64 = RTSP_RTP_PORT_MAX}, 0, 65535, DEC|ENC },
+    { "adv_port", "set publicly advertised UDP port", OFFSET(rtp_port_adv), AV_OPT_TYPE_INT, {.i64 = RTSP_RTP_PORT_ADV}, 0, 65535, DEC|ENC },
     { "timeout", "set maximum timeout (in seconds) to wait for incoming connections (-1 is infinite, imply flag listen)", OFFSET(initial_timeout), AV_OPT_TYPE_INT, {.i64 = -1}, INT_MIN, INT_MAX, DEC },
     { "stimeout", "set timeout (in micro seconds) of socket TCP I/O operations", OFFSET(stimeout), AV_OPT_TYPE_INT, {.i64 = 0}, INT_MIN, INT_MAX, DEC },
     RTSP_REORDERING_OPTS(),
@@ -1316,7 +1317,7 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
                               int lower_transport, const char *real_challenge)
 {
     RTSPState *rt = s->priv_data;
-    int rtx = 0, j, i, err, interleave = 0, port_off;
+    int rtx = 0, i, err, interleave = 0, port_off;
     RTSPStream *rtsp_st;
     RTSPMessageHeader reply1, *reply = &reply1;
     char cmd[2048];
@@ -1339,7 +1340,7 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
     /* even random offset */
     port_off -= port_off & 0x01;
 
-    for (j = rt->rtp_port_min + port_off, i = 0; i < rt->nb_rtsp_streams; ++i) {
+    for (i = 0; i < rt->nb_rtsp_streams; ++i) {
         char transport[2048];
 
         /*
@@ -1376,15 +1377,13 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
             }
 
             /* first try in specified port range */
-            while (j <= rt->rtp_port_max) {
-                ff_url_join(buf, sizeof(buf), "rtp", NULL, host, -1,
-                            "?localport=%d", j);
-                /* we will use two ports per rtp stream (rtp and rtcp) */
-                j += 2;
-                if (!ffurl_open(&rtsp_st->rtp_handle, buf, AVIO_FLAG_READ_WRITE,
-                               &s->interrupt_callback, NULL))
-                    goto rtp_opened;
-            }
+            ff_url_join(buf, sizeof(buf), "rtp", NULL, host, -1,
+                        "?localport=%d", rt->rtp_port_min);
+            /* we will use two ports per rtp stream (rtp and rtcp) */
+            if (!ffurl_open(&rtsp_st->rtp_handle, buf, AVIO_FLAG_READ_WRITE,
+                           &s->interrupt_callback, NULL))
+                goto rtp_opened;
+
             av_log(s, AV_LOG_ERROR, "Unable to open an input RTP port\n");
             err = AVERROR(EIO);
             goto fail;
@@ -1397,10 +1396,10 @@ int ff_rtsp_make_setup_request(AVFormatContext *s, const char *host, int port,
             if (rt->server_type != RTSP_SERVER_REAL)
                 av_strlcat(transport, "unicast;", sizeof(transport));
             av_strlcatf(transport, sizeof(transport),
-                     "client_port=%d", port);
+                     "client_port=%d", rt->rtp_port_adv);
             if (rt->transport == RTSP_TRANSPORT_RTP &&
                 !(rt->server_type == RTSP_SERVER_WMS && i > 0))
-                av_strlcatf(transport, sizeof(transport), "-%d", port + 1);
+                av_strlcatf(transport, sizeof(transport), "-%d", rt->rtp_port_adv + 1);
         }
 
         /* RTP/TCP */

@@ -74,6 +74,7 @@ enum RTSPControlTransport {
 #define RTSP_TCP_MAX_PACKET_SIZE 1472
 #define RTSP_DEFAULT_NB_AUDIO_CHANNELS 1
 #define RTSP_DEFAULT_AUDIO_SAMPLERATE 44100
+#define RTSP_RTP_PORT_ADV 0
 #define RTSP_RTP_PORT_MIN 5000
 #define RTSP_RTP_PORT_MAX 65000
 
@@ -383,7 +384,7 @@ typedef struct RTSPState {
     /**
      * Minimum and maximum local UDP ports.
      */
-    int rtp_port_min, rtp_port_max;
+    int rtp_port_min, rtp_port_max, rtp_port_adv;
 
     /**
      * Timeout to wait for incoming connections.
